@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-time Chat with Gun.js</title>
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #fff;
+    }
+
+    #login, #chat { display: none; padding: 20px; }
+
+    #login.active, #chat.active { display: block; }
+
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      border: none;
+      border-radius: 5px;
+    }
+
+    input { background: #1f1f1f; color: white; }
+    button { background: #333; color: white; cursor: pointer; }
+
+    #messages {
+      height: 60vh;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      border: 1px solid #333;
+      padding: 10px;
+      background: #1f1f1f;
+      border-radius: 10px;
+    }
+
+    .msg {
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      background: #444;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 40px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+    .content img {
+      max-width: 200px;
+      max-height: 200px;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .name {
+      font-weight: bold;
+      color: #4fc3f7;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="login" class="active">
+    <h2>Login</h2>
+    <input type="text" id="realname" placeholder="Nama asli" />
+    <input type="text" id="nickname" placeholder="Nama samaran" />
+    <button onclick="startChat()">Masuk</button>
+  </div>
+
+  <div id="chat">
+    <h2>Chat Room</h2>
+    <div id="messages"></div>
+    <input type="text" id="message" placeholder="Ketik pesan..." />
+    <input type="file" id="imageInput" accept="image/*" />
+    <button onclick="sendMessage()">Kirim <i class="fas fa-paper-plane"></i></button>
+  </div>
+
+  <script>
+    const gun = Gun();
+    let user = {};
+
+    function startChat() {
+      const realname = document.getElementById('realname').value.trim();
+      const nickname = document.getElementById('nickname').value.trim();
+
+      if (!realname || !nickname) {
+        alert("Isi kedua kolom!");
+        return;
+      }
+
+      user = { realname, nickname };
+      document.getElementById('login').classList.remove('active');
+      document.getElementById('chat').classList.add('active');
+    }
+
+    function sendMessage() {
+      const msg = document.getElementById('message').value.trim();
+      const imgInput = document.getElementById('imageInput');
+      const file = imgInput.files[0];
+
+      if (!msg && !file) return;
+
+      if (file && file.size > 1024 * 1024) {
+        alert("Gambar maksimal 1 MB");
+        return;
+      }
+
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function () {
+          gun.get('chat').set({
+            name: user.nickname,
+            avatar: user.realname[0].toUpperCase(),
+            message: msg || '',
+            image: reader.result,
+            time: Date.now()
+          });
+        };
+        reader.readAsDataURL(file);
+      } else {
+        gun.get('chat').set({
+          name: user.nickname,
+          avatar: user.realname[0].toUpperCase(),
+          message: msg,
+          time: Date.now()
+        });
+      }
+
+      document.getElementById('message').value = '';
+      imgInput.value = '';
+    }
+
+    gun.get('chat').map().on(data => {
+      if (!data || !data.name) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'msg';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = data.avatar || '?';
+
+      const content = document.createElement('div');
+      content.className = 'content';
+      content.innerHTML = `<div class="name">${data.name}</div>`;
+
+      if (data.message) {
+        const p = document.createElement('p');
+        p.textContent = data.message;
+        content.appendChild(p);
+      }
+
+      if (data.image) {
+        const img = document.createElement('img');
+        img.src = data.image;
+        content.appendChild(img);
+      }
+
+      wrapper.appendChild(avatar);
+      wrapper.appendChild(content);
+
+      document.getElementById('messages').appendChild(wrapper);
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    });
+  </script>
+
+</body>
+</html>
